@@ -21,8 +21,6 @@ const (
 	envPort               = "PORT"
 )
 
-var searchStrings = []string{"lunch", "ひる", "昼", "shallow_pan_of_food"}
-
 func main() {
 	botToken := os.Getenv(envSlackBotToken)
 	if botToken == "" {
@@ -84,7 +82,7 @@ func main() {
 			log.Println("callback event received")
 			switch typed := ev.InnerEvent.Data.(type) {
 			case *slackevents.MessageEvent:
-				if contains(typed.Text, searchStrings) {
+				if contains(typed.Text, keywords) {
 					ref := slack.ItemRef{
 						Channel:   typed.Channel,
 						Timestamp: typed.TimeStamp,
@@ -106,6 +104,9 @@ func main() {
 }
 
 func contains(msg string, s []string) bool {
+	if strings.Count(msg, "") == 4 && strings.HasPrefix(msg, "ひ") && strings.HasSuffix(msg, "る") {
+		return true
+	}
 	for _, v := range s {
 		if !strings.Contains(msg, v) {
 			continue
