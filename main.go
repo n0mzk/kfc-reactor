@@ -1,17 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/slack-go/slack"
-	"github.com/slack-go/slack/slackevents"
+
+	"github.com/n0mzk/kfc-reactor/config"
+	"github.com/n0mzk/kfc-reactor/handlers"
 )
 
 const (
@@ -19,99 +17,53 @@ const (
 	envSlackUserToken     = "SLACK_USER_TOKEN"
 	envSlackSigningSecret = "KFC_REACTOR_SIGNING_SECRET"
 	envPort               = "PORT"
+	envOwnersChannelID    = "KFC_REACTOR_OWNERS_CHANNEL_ID"
 )
 
-func main() {
-	botToken := os.Getenv(envSlackBotToken)
+var (
+	botToken      string
+	userToken     string
+	signingSecret string
+	port          string
+	ownersChannel string
+	logger        *log.Logger
+)
+
+func init() {
+	logger = log.New(os.Stdout, "kfc-reactor: ", log.Lshortfile|log.LstdFlags)
+	botToken = os.Getenv(envSlackBotToken)
 	if botToken == "" {
-		log.Fatal(envSlackBotToken + "is not provided")
+		logger.Fatal(envSlackBotToken + " is not provided")
 	}
-	userToken := os.Getenv(envSlackUserToken)
+	userToken = os.Getenv(envSlackUserToken)
 	if userToken == "" {
-		log.Fatal(envSlackUserToken + "is not provided")
+		logger.Fatal(envSlackUserToken + " is not provided")
 	}
-	secret := os.Getenv(envSlackSigningSecret)
-	if secret == "" {
-		log.Fatal(envSlackSigningSecret + "is not provided")
+	signingSecret = os.Getenv(envSlackSigningSecret)
+	if signingSecret == "" {
+		logger.Fatal(envSlackSigningSecret + " is not provided")
 	}
-	port := os.Getenv(envPort)
+	port = os.Getenv(envPort)
 	if port == "" {
-		log.Fatal(envPort + "is not provided")
+		logger.Fatal(envPort + " is not provided")
+	}
+	ownersChannel = os.Getenv(envOwnersChannelID)
+	if ownersChannel == "" {
+		logger.Fatal(envOwnersChannelID + " is not provided")
 	}
 
-	userClient := slack.New(userToken)
+	config.NewConfigLoader(logger, slack.New(botToken), ownersChannel).LoadConfig()
+}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("received")
-		verifier, err := slack.NewSecretsVerifier(r.Header, secret)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Fatalf("new secrets verifier failed: %s", err)
-		}
-		reader := io.TeeReader(r.Body, &verifier)
-		body, err := ioutil.ReadAll(reader)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Fatalf("read body failed: %s", err)
-		}
-		if err := verifier.Ensure(); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			log.Printf("verification failed: %s", err)
-		}
+func main() {
+	h := handlers.NewHandler(slack.New(botToken), slack.New(userToken), signingSecret, logger)
 
-		ev, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Fatal(err)
-		}
-		log.Println("parsed")
+	http.HandleFunc("/command", h.HandleSlashCommands)
+	http.HandleFunc("/", h.HandleEvents)
 
-		switch ev.Type {
-		case slackevents.URLVerification:
-			var res *slackevents.ChallengeResponse
-			if err := json.Unmarshal([]byte(body), &res); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				log.Fatalf("unmarshal body failed: %s", err)
-			}
-			w.Header().Set("Content-Type", "text/plain")
-			if _, err := w.Write([]byte(res.Challenge)); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				log.Fatalf("write response failed: %s", err)
-			}
-		case slackevents.CallbackEvent:
-			log.Println("callback event received")
-			switch typed := ev.InnerEvent.Data.(type) {
-			case *slackevents.MessageEvent:
-				if contains(typed.Text, keywords) {
-					ref := slack.ItemRef{
-						Channel:   typed.Channel,
-						Timestamp: typed.TimeStamp,
-					}
-					err = userClient.AddReaction("kfc", ref)
-					if err != nil {
-						log.Fatal(err)
-					}
-					log.Println("reaction added")
-				}
-			}
-		}
-	})
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
 		log.Fatalf("listen and serve failed: %s", err)
 	}
 	fmt.Println("listening")
-}
-
-func contains(msg string, s []string) bool {
-	if strings.Count(msg, "") == 4 && strings.HasPrefix(msg, "ひ") && strings.HasSuffix(msg, "る") {
-		return true
-	}
-	for _, v := range s {
-		if !strings.Contains(msg, v) {
-			continue
-		}
-		return strings.Contains(msg, v)
-	}
-	return false
 }
