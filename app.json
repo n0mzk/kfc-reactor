@@ -1,0 +1,36 @@
+{
+  "name": "kfc-reactor",
+  "desctiption": "Add :kfc: reaction to messages that contains stored keywords",
+  "keywords": [
+    "go",
+    "slack"
+  ],
+  "website": "http://github.com/n0mzk/kfc-reactor",
+  "repository": "http://github.com/n0mzk/kfc-reactor",
+  "env": {
+    "SLACK_BOT_TOKEN": {
+      "desctiption": "Slack Bot User OAuth Access Token"
+    },
+    "SLACK_USER_TOKEN": {
+      "description": "Slack OAuth Access Token"
+    },
+    "KFC_REACTOR_SIGNING_SECRET": {
+      "description": "Slack Signing Secret"
+    },
+    "PORT": {
+      "description": "Listening Port"
+    },
+    "KFC_REACTOR_HOME_CHANNEL_ID": {
+      "description": "Slack Channel to Post Messages"
+    },
+    "REDIS_URL": {
+      "description": "Redis URL"
+    }
+  },
+  "addons": [
+    "heroku-redis",
+    {
+      "plan": "heroku-redis:hobby-dev"
+    }
+  ]
+}

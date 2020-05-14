@@ -9,12 +9,12 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 
-	"github.com/n0mzk/kfc-reactor/config"
+	"github.com/n0mzk/kfc-reactor/db"
 )
 
 func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	h.logger.Println("event received")
-	verifier, err := slack.NewSecretsVerifier(r.Header, h.SigningSecret)
+	verifier, err := slack.NewSecretsVerifier(r.Header, h.signingSecret)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		h.logger.Printf("new secrets verifier failed: %s", err)
@@ -57,16 +57,28 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	case slackevents.CallbackEvent:
 		switch typed := ev.InnerEvent.Data.(type) {
 		case *slackevents.MessageEvent:
-			if config.Contains(typed.Text) {
+			if h.isKanameMadoka(typed.User) {
+				return
+			}
+			if h.contains(typed.Text) {
 				ref := slack.ItemRef{
 					Channel:   typed.Channel,
 					Timestamp: typed.TimeStamp,
 				}
-				err = h.UserClient.AddReaction("kfc", ref)
-				if err != nil {
+				if err = h.userClient.AddReaction("kfc", ref); err != nil {
 					h.logger.Print(err)
 				}
 				h.logger.Println("reaction added")
+			}
+		case *slackevents.ReactionAddedEvent:
+			for _, v := range db.KanameMadokas {
+				if typed.ItemUser == v.UserId {
+					h.userClient.RemoveReaction(typed.Reaction, slack.ItemRef{
+						Channel:   typed.Item.Channel,
+						Timestamp: typed.EventTimestamp,
+					})
+				}
+				h.logger.Println("reaction removed")
 			}
 		}
 	}

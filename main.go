@@ -8,7 +8,7 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"github.com/n0mzk/kfc-reactor/config"
+	"github.com/n0mzk/kfc-reactor/db"
 	"github.com/n0mzk/kfc-reactor/handlers"
 )
 
@@ -17,29 +17,26 @@ const (
 	envSlackUserToken     = "SLACK_USER_TOKEN"
 	envSlackSigningSecret = "KFC_REACTOR_SIGNING_SECRET"
 	envPort               = "PORT"
-	envOwnersChannelID    = "KFC_REACTOR_OWNERS_CHANNEL_ID"
+	envHomeChannelID      = "KFC_REACTOR_HOME_CHANNEL_ID"
+	envRedisURL           = "REDIS_URL"
 )
 
 var (
-	botToken      string
-	userToken     string
-	signingSecret string
-	port          string
-	ownersChannel string
-	logger        *log.Logger
+	port    string
+	handler *handlers.Handler
 )
 
 func init() {
-	logger = log.New(os.Stdout, "kfc-reactor: ", log.Lshortfile|log.LstdFlags)
-	botToken = os.Getenv(envSlackBotToken)
+	logger := log.New(os.Stdout, "kfc-reactor: ", log.Lshortfile|log.LstdFlags)
+	botToken := os.Getenv(envSlackBotToken)
 	if botToken == "" {
 		logger.Fatal(envSlackBotToken + " is not provided")
 	}
-	userToken = os.Getenv(envSlackUserToken)
+	userToken := os.Getenv(envSlackUserToken)
 	if userToken == "" {
 		logger.Fatal(envSlackUserToken + " is not provided")
 	}
-	signingSecret = os.Getenv(envSlackSigningSecret)
+	signingSecret := os.Getenv(envSlackSigningSecret)
 	if signingSecret == "" {
 		logger.Fatal(envSlackSigningSecret + " is not provided")
 	}
@@ -47,19 +44,29 @@ func init() {
 	if port == "" {
 		logger.Fatal(envPort + " is not provided")
 	}
-	ownersChannel = os.Getenv(envOwnersChannelID)
-	if ownersChannel == "" {
-		logger.Fatal(envOwnersChannelID + " is not provided")
+	homeChannel := os.Getenv(envHomeChannelID)
+	if homeChannel == "" {
+		logger.Fatal(envHomeChannelID + " is not provided")
+	}
+	redisURL := os.Getenv(envRedisURL)
+	if redisURL == "" {
+		logger.Fatal(envRedisURL + " is not provided")
 	}
 
-	config.NewConfigLoader(logger, slack.New(botToken), ownersChannel).LoadConfig()
+	database, err := db.NewDB(redisURL, logger)
+	if err != nil {
+		logger.Fatalf("new redis connection failed: %s", err)
+	}
+
+	handler, err = handlers.NewHandler(slack.New(botToken), slack.New(userToken), signingSecret, homeChannel, logger, database)
+	if err != nil {
+		logger.Fatalf("new handler failed: %s", err)
+	}
 }
 
 func main() {
-	h := handlers.NewHandler(slack.New(botToken), slack.New(userToken), signingSecret, logger)
-
-	http.HandleFunc("/command", h.HandleSlashCommands)
-	http.HandleFunc("/", h.HandleEvents)
+	http.HandleFunc("/command", handler.HandleSlashCommands)
+	http.HandleFunc("/", handler.HandleEvents)
 
 	err := http.ListenAndServe(":"+port, nil)
 	if err != nil {
