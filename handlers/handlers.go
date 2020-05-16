@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"golang.org/x/text/unicode/norm"
 	"log"
 	"strings"
+	"unicode"
 
 	"github.com/slack-go/slack"
 
@@ -41,25 +43,6 @@ func NewHandler(botClient, userClient *slack.Client, secret, homeCh string, logg
 	}, nil
 }
 
-func (h *Handler) isKanameMadoka(userID string) bool {
-	for _, v := range db.KanameMadokas {
-		if userID == v.UserId {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *Handler) contains(s string) bool {
-	for _, v := range db.Keywords {
-		if !strings.Contains(s, v) {
-			continue
-		}
-		return strings.Contains(s, v)
-	}
-	return false
-}
-
 func (h *Handler) handleErr(err error, chId, msg string) {
 	h.logger.Println(err)
 	h.sendMessage(chId, msg)
@@ -74,4 +57,58 @@ func (h *Handler) sendMessage(chId, msg string) {
 	if err != nil {
 		h.logger.Printf("send message failed: %s", err)
 	}
+}
+
+func (h *Handler) isKanameMadoka(userID string) bool {
+	for _, v := range db.KanameMadokas {
+		if userID == v.UserId {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Handler) contains(s string) bool {
+	s = h.normalize(s)
+	for _, v := range db.Keywords {
+		if !strings.Contains(s, v) {
+			continue
+		}
+		return strings.Contains(s, v)
+	}
+	return false
+}
+
+var avoidingSearchChars = []string{
+	" ",
+	".",
+	"/",
+	"_",
+	"-",
+}
+
+func (h *Handler) normalize(s string) string {
+	// unicode NFKC normalize
+	s = norm.NFKC.String(s)
+
+	// upper case to lower case
+	s = strings.ToLower(s)
+
+	// Katakana to Hiragana
+	hiragana := make([]rune, len([]rune(s)))
+	for i, v := range []rune(s) {
+		if unicode.In(v, unicode.Katakana) {
+			hiragana[i] = v - 96
+		} else {
+			hiragana[i] = v
+		}
+	}
+	s = string(hiragana)
+
+	// avoid avoiding-search
+	for _, c := range avoidingSearchChars {
+		s = strings.Replace(s, c, "", -1)
+	}
+
+	return s
 }

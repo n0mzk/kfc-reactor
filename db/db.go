@@ -30,6 +30,10 @@ func (d *DB) AddKeyword(w string) error {
 	if err != nil {
 		return err
 	}
+
+	// remove ":" prefix and suffix for emoji
+	w = strings.TrimPrefix(strings.TrimSuffix(w, ":"), ":")
+
 	_, err = c.Do("SET", "keyword:"+w, nil)
 	if err != nil {
 		return fmt.Errorf("set keyword failed: %w", err)
