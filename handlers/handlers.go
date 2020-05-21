@@ -85,6 +85,8 @@ var avoidingSearchChars = []string{
 	"/",
 	"_",
 	"-",
+	"|",
+	`\`,
 }
 
 func (h *Handler) normalize(s string) string {
