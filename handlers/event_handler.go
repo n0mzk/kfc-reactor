@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -59,6 +60,20 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 		case *slackevents.MessageEvent:
 			if h.isKanameMadoka(typed.User) {
 				return
+			}
+			// ice_ha_chigau
+			if strings.Contains(typed.Text, "アイス") {
+				ref := slack.ItemRef{
+					Channel:   typed.Channel,
+					Timestamp: typed.TimeStamp,
+				}
+				if err = h.userClient.AddReaction("ice_ha_chigau", ref); err != nil {
+					h.logger.Print(err)
+				}
+				if err = h.userClient.AddReaction("nja_naikana", ref); err != nil {
+					h.logger.Print(err)
+				}
+				h.logger.Println("reaction added")
 			}
 			if h.contains(typed.Text) {
 				ref := slack.ItemRef{
