@@ -48,7 +48,8 @@ func (h *Handler) HandleSlashCommands(w http.ResponseWriter, r *http.Request) {
 			h.sendMessage(cmd.ChannelID, "`/kfc-reactor add [keyword]` の形式で送ってください！")
 			return
 		}
-		if h.contains(spl[1]) {
+		typ, _ := h.contains(spl[1])
+		if typ != "" {
 			h.sendMessage(cmd.ChannelID, spl[1]+" にはもう反応できます！")
 		} else {
 			err = h.Database.AddKeyword(spl[1])

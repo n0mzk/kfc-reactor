@@ -18,8 +18,10 @@ type KanameMadoka struct {
 	UserName string
 }
 
-var Keywords []string
+var KFC []string
+var Ice = []string{"アイス"}
 var KanameMadokas []KanameMadoka
+var Keywords = map[string][]string{}
 
 func NewDB(url string, logger *log.Logger) (*DB, error) {
 	return &DB{}, nil
@@ -40,7 +42,7 @@ func (d *DB) AddKeyword(w string) error {
 	}
 	c.Close()
 
-	Keywords = append(Keywords, w)
+	Keywords["KFC"] = append(Keywords["KFC"], w)
 
 	return nil
 }

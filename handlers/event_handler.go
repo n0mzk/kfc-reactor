@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -58,11 +57,32 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 	case slackevents.CallbackEvent:
 		switch typed := ev.InnerEvent.Data.(type) {
 		case *slackevents.MessageEvent:
-			if h.isKanameMadoka(typed.User) {
+			if h.isKanameMadoka(typed.User) || typed.Channel == h.homeChannel {
 				return
 			}
-			// ice_ha_chigau
-			if strings.Contains(typed.Text, "アイス") {
+			typ, keyword := h.contains(typed.Text)
+			switch {
+			case typ == "KFC":
+				ref := slack.ItemRef{
+					Channel:   typed.Channel,
+					Timestamp: typed.TimeStamp,
+				}
+				if err = h.userClient.AddReaction("kfc", ref); err != nil {
+					h.logger.Print(err)
+				}
+				h.logger.Println("reaction added")
+				link, err := h.userClient.GetPermalink(
+					&slack.PermalinkParameters{
+						Channel: typed.Channel,
+						Ts:      typed.TimeStamp,
+					},
+				)
+				if err != nil {
+					h.logger.Printf("get message parmalink failed: %s", err)
+				}
+				msg := "message contains " + keyword + "\n" + link
+				h.sendMessage(h.homeChannel, msg)
+			case typ == "Ice":
 				ref := slack.ItemRef{
 					Channel:   typed.Channel,
 					Timestamp: typed.TimeStamp,
@@ -74,16 +94,19 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 					h.logger.Print(err)
 				}
 				h.logger.Println("reaction added")
-			}
-			if h.contains(typed.Text) {
-				ref := slack.ItemRef{
-					Channel:   typed.Channel,
-					Timestamp: typed.TimeStamp,
+				link, err := h.userClient.GetPermalink(
+					&slack.PermalinkParameters{
+						Channel: typed.Channel,
+						Ts:      typed.TimeStamp,
+					},
+				)
+				if err != nil {
+					h.logger.Printf("get message parmalink failed: %s", err)
 				}
-				if err = h.userClient.AddReaction("kfc", ref); err != nil {
-					h.logger.Print(err)
-				}
-				h.logger.Println("reaction added")
+				msg := "message contains " + keyword + "\n" + link
+				h.sendMessage(h.homeChannel, msg)
+			case typ == "":
+				// do nothing
 			}
 		case *slackevents.ReactionAddedEvent:
 			for _, v := range db.KanameMadokas {

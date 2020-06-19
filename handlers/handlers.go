@@ -26,7 +26,10 @@ func NewHandler(botClient, userClient *slack.Client, secret, homeCh string, logg
 	if err != nil {
 		return nil, fmt.Errorf("get keywords list failed: %w", err)
 	}
-	db.Keywords = keywords
+	db.KFC = keywords
+	db.Keywords["KFC"] = db.KFC
+	db.Keywords["Ice"] = db.Ice
+
 	kanameMadokas, err := database.ListKanameMadokas()
 	if err != nil {
 		return nil, fmt.Errorf("get kaname madokas list failed: %w", err)
@@ -68,15 +71,18 @@ func (h *Handler) isKanameMadoka(userID string) bool {
 	return false
 }
 
-func (h *Handler) contains(s string) bool {
+func (h *Handler) contains(s string) (string, string) {
 	s = h.normalize(s)
-	for _, v := range db.Keywords {
-		if !strings.Contains(s, v) {
-			continue
+
+	for typ, list := range db.Keywords {
+		for _, kw := range list {
+			if !strings.Contains(s, kw) {
+				continue
+			}
+			return typ, kw
 		}
-		return strings.Contains(s, v)
 	}
-	return false
+	return "", ""
 }
 
 var avoidingSearchChars = []string{
