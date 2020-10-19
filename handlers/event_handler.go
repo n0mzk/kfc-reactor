@@ -67,7 +67,7 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 					Channel:   typed.Channel,
 					Timestamp: typed.TimeStamp,
 				}
-				if err = h.userClient.AddReaction("551", ref); err != nil {
+				if err = h.userClient.AddReaction("kfc", ref); err != nil {
 					h.logger.Print(err)
 				}
 				h.logger.Println("reaction added")
